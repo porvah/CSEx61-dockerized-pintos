@@ -14,12 +14,12 @@ convert_int_to_fixed(int n) {
 }
 
 int
-convert_x_to_int_zero(struct real x) {
+convert_fixed_to_int_zero(struct real x) {
     return x.value / real_f;
 }
 
 int
-convert_x_to_int_nearest(struct real x) {
+convert_fixed_to_int_nearest(struct real x) {
     if (x >= 0)
         return (x.value + real_f / 2) / real_f;
     else
@@ -56,3 +56,29 @@ real_sub_int(struct real x, int y) {
 
 struct real
 real_mul_real(struct real x, struct real y) {
+    int val = ((int64_t) x.value) * y.value / real_f;
+    struct real res = { val };
+    return res;
+}
+
+struct real
+real_mul_int(struct real x, int y) {
+    struct real res;
+    res.value = x.value * y;
+    return res;
+}
+
+struct real
+real_div_real(struct real x, struct real y) {
+    int val = ((int64_t) x.value) * real_f / y.value;
+    struct real res = { val };
+    return res;
+}
+
+struct real
+real_div_int(struct real x, int y) {
+    struct real res;
+    res.value = x.value / y;
+    return res;
+}
+
