@@ -371,8 +371,8 @@ thread_get_load_avg (void)
 int
 thread_get_recent_cpu (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+    struct real res = real_mul_int(thread_current()->recent_cpu, 100);
+    return convert_fixed_to_int_nearest(res);
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
