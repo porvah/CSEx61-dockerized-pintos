@@ -165,12 +165,58 @@ timer_print_stats (void)
 {
   printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
+
+void update_load_avg() {
+    struct real f_59_60 = real_div_int(convert_int_to_fixed(59), 60);
+    struct real f_1_60 = real_div_int(convert_int_to_fixed(1), 60);
+    
+    struct real part1 = real_mul_real(f_59_60, load_avg);
+    struct real part2 = real_mul_real(f_1_60, list_size(ready_list));
+
+    load_avg = real_add_real(part1, part2);
+}
+
+thread_action_func* update_recent_cpu(struct thread* t, void* aux) {
+    struct real fraction = real_div_real(read_mul_int(load_avg, 2), real_add_int(real_mul_int(load_avg, 2), 1));
+    t->recent_cpu = real_add_int(real_mul_real(t->recent_cpu, fraction), t->nice);
+
+    return 0;
+}
+
+thread_action_func* update_priority(struct thread* t, void* aux) {
+    struct real part1 = convert_int_to_fixed(PRI_MAX);
+    struct real part2 = real_div_int(t->recent_cpu, 4);
+    struct real part3 = real_mul_int(t->nice, 2);
+    struct real res = real_sub_real(part1, part2);
+    res = real_sub_real(res, part3);
+    
+    t->priority = convert_fixed_to_int_nearest(res);
+}
+
 
 /* Timer interrupt handler. */
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
+
+  if (ticks % TIMER_FREQ == 0) {
+      intr_disable();
+
+      update_load_avg();
+      thread_foreach(update_recent_cpu, 0);
+
+      intr_enable();
+  }
+
+  if (ticks % 4 == 0) {
+      intr_disable();
+
+      thread_foreach(update_priority, 0);
+
+      intr_enable();
+  }
+
   thread_tick ();
 }
 
