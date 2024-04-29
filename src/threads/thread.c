@@ -344,6 +344,8 @@ thread_set_priority (int new_priority)
 {
   
   thread_current ()->priority = new_priority; 
+  thread_current ()->original_priority = new_priority;
+
 
   // rescheduling 
   if(!list_empty(&ready_list)) {
@@ -478,7 +480,8 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
-  t->old_priority = priority;
+  t->original_priority = priority;
+  list_init(&t->locks);
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
