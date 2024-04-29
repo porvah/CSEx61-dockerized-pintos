@@ -49,6 +49,15 @@ sema_init (struct semaphore *sema, unsigned value)
   sema->value = value;
   list_init (&sema->waiters);
 }
+////////////////////////////////////////////////////////////
+// A function to compare the priority of two threads
+int
+priority_compare(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
+  struct thread *thread_a = list_entry(a, struct thread, elem);
+  struct thread *thread_b = list_entry(b, struct thread, elem);
+  return thread_a->priority > thread_b->priority;   // Using ">" to sort in descending order and maintain the order of List Entering.
+}
+////////////////////////////////////////////////////////////
 
 /* Down or "P" operation on a semaphore.  Waits for SEMA's value
    to become positive and then atomically decrements it.
@@ -68,7 +77,7 @@ sema_down (struct semaphore *sema)
   old_level = intr_disable ();
   while (sema->value == 0) 
     {
-      list_push_back (&sema->waiters, &thread_current ()->elem);
+      list_insert_ordered(&sema->waiters, &thread_current ()->elem, priority_compare, NULL);
       thread_block ();
     }
   sema->value--;
@@ -117,6 +126,11 @@ sema_up (struct semaphore *sema)
     thread_unblock (list_entry (list_pop_front (&sema->waiters),
                                 struct thread, elem));
   sema->value++;
+
+////////////////////////////////////////////////////////
+// Always yield after sema_up
+  thread_yield();
+  //////////////////////////////////////////////////////
   intr_set_level (old_level);
 }
 
@@ -241,7 +255,8 @@ lock_release (struct lock *lock)
 {
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
-  thread_current()->priority = thread_current()->old_priority; 
+  // Set_Priority fails when executing the next line
+//   thread_current()->priority = thread_current()->old_priority; 
   lock->holder = NULL;
   sema_up (&lock->semaphore);
 }
