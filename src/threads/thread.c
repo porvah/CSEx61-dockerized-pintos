@@ -23,6 +23,7 @@
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
+struct real load_avg = { 0 };
 
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
@@ -58,8 +59,6 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
-
-struct real load_avg = { 0 };
 
 static void kernel_thread (thread_func *, void *aux);
 
@@ -604,6 +603,50 @@ int compare_priority(const struct list_elem *a, const struct list_elem *b, void 
   struct thread *thread_a = list_entry(a, struct thread, elem);
   struct thread *thread_b = list_entry(b, struct thread, elem);
   return thread_a->priority > thread_b->priority;
+}
+
+void increment_running_thread_recent_cpu() {
+    if (thread_current() != idle_thread)
+        thread_current()->recent_cpu = real_add_int(thread_current()->recent_cpu, 1);
+}
+
+void update_load_avg() {
+    struct real f_59_60 = real_div_int(convert_int_to_fixed(59), 60);
+    struct real f_1_60 = real_div_int(convert_int_to_fixed(1), 60);
+    int ready_threads_size = list_size(&ready_list);
+    if (thread_current() != idle_thread)
+        ready_threads_size++;
+    
+    struct real part1 = real_mul_real(f_59_60, load_avg);
+    struct real part2 = real_mul_int(f_1_60, ready_threads_size);
+
+    load_avg = real_add_real(part1, part2);
+}
+
+thread_action_func* update_recent_cpu(struct thread* t, void* aux) {
+    if (t == idle_thread)
+        return 0;
+    struct real fraction = real_div_real(real_mul_int(load_avg, 2), real_add_int(real_mul_int(load_avg, 2), 1));
+
+    t->recent_cpu = real_add_int(real_mul_real(t->recent_cpu, fraction), t->nice);
+
+    return 0;
+}
+
+thread_action_func* update_priority(struct thread* t, void* aux) {
+    if (t == idle_thread)
+        return 0;
+    struct real part1 = convert_int_to_fixed(PRI_MAX);
+    struct real part2 = real_div_int(t->recent_cpu, 4);
+    int part3 = t->nice * 2;
+    struct real res = real_sub_real(part1, part2);
+    res = real_sub_int(res, part3);
+    
+    t->priority = convert_fixed_to_int_nearest(res);
+}
+
+void sort_ready_list() {
+  list_sort(&ready_list, (list_less_func *) &compare_priority, NULL);
 }
 
 /* Offset of `stack' member within `struct thread'.
