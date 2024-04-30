@@ -343,7 +343,7 @@ void
 thread_set_priority (int new_priority) 
 {; 
   thread_current ()->original_priority = new_priority;
-  if(list_empty(&thread_current()->locks))
+  if(list_empty(&thread_current()->locks) || list_entry(list_front(&thread_current()->locks), struct lock, elem)->priority < new_priority)
       thread_current ()->priority = new_priority;
 
   // rescheduling 
