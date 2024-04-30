@@ -229,6 +229,16 @@ lock_acquire (struct lock *lock)
       list_insert_ordered(&hold->locks, e, priority_compare_locks, NULL);
       struct lock* holder_lock = list_entry(list_front(&hold->locks), struct lock, elem);
       hold->priority = holder_lock->priority;
+      struct thread* th = hold;
+      while(th->lock != NULL){
+        struct lock* holder_lock = hold->lock;
+        if(prio > holder_lock->priority)
+          holder_lock->priority = prio;
+        struct thread* lock_holder = holder_lock->holder;
+        if(prio > lock_holder->priority)
+          lock_holder->priority = prio;
+        th = lock_holder;
+      }
     }
   }
   
@@ -270,6 +280,16 @@ lock_try_acquire (struct lock *lock)
       list_insert_ordered(&hold->locks, e, priority_compare_locks, NULL);
       struct lock* holder_lock = list_entry(list_front(&hold->locks), struct lock, elem);
       hold->priority = holder_lock->priority;
+      struct thread* th = hold;
+      while(th->lock != NULL){
+        struct lock* holder_lock = hold->lock;
+        if(prio > holder_lock->priority)
+          holder_lock->priority = prio;
+        struct thread* lock_holder = holder_lock->holder;
+        if(prio > lock_holder->priority)
+          lock_holder->priority = prio;
+        th = lock_holder;
+      }
     }
   }
   return success;
