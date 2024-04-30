@@ -171,6 +171,8 @@ thread_create (const char *name, int priority,
   struct switch_entry_frame *ef;
   struct switch_threads_frame *sf;
   tid_t tid;
+  // t->priority = priority;
+  // t->original_priority = priority;
 
   ASSERT (function != NULL);
 
@@ -341,11 +343,10 @@ thread_foreach (thread_action_func *func, void *aux)
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) 
-{
-  
-  thread_current ()->priority = new_priority; 
+{; 
   thread_current ()->original_priority = new_priority;
-
+  if(list_empty(&thread_current()->locks))
+      thread_current ()->priority = new_priority;
 
   // rescheduling 
   if(!list_empty(&ready_list)) {
