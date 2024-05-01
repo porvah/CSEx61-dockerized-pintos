@@ -367,7 +367,17 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice UNUSED) 
 {
+  enum intr_level old_level = intr_disable ();
+
   thread_current ()->nice = nice;
+  update_priority(thread_current(), NULL);
+
+  intr_set_level (old_level);
+
+  struct list_elem* highest_priority_elem = list_min(&ready_list, (list_less_func *) &compare_priority, NULL);
+  struct thread* highest_priority_thread = list_entry(highest_priority_elem, struct thread, elem);
+  if (thread_current()->priority < highest_priority_thread->priority)
+      thread_yield();
 }
 
 /* Returns the current thread's nice value. */
@@ -511,6 +521,11 @@ next_thread_to_run (void)
 {
   if (list_empty (&ready_list))
     return idle_thread;
+  else if (thread_mlfqs) {
+    struct list_elem* new_thread = list_min(&ready_list, (list_less_func *) &compare_priority, NULL);
+    list_remove(new_thread);
+    return list_entry(new_thread, struct thread, elem);
+  }
   else
     return list_entry (list_pop_front (&ready_list), struct thread, elem);
 }
