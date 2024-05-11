@@ -40,6 +40,7 @@ process_execute (const char *file_name)
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   return tid;
@@ -60,12 +61,21 @@ start_process (void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
-
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success) 
+  if (!success){ 
+    //rowan
+    sema_up(&thread_current()->child_parent_sync);
+    //rowan
     thread_exit ();
+  }
 
+  //rowan
+  if(thread_current()->parent != NULL){
+    list_insert(&thread_current()->child_elem,&thread_current()->parent->children);
+    sema_up(&thread_current()->child_parent_sync);
+    thread_current()->child_success = success;
+  }
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -85,10 +95,23 @@ start_process (void *file_name_)
 
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
+//rowan
 int
 process_wait (tid_t child_tid UNUSED) 
 {
+  struct thread *child_thread;
+  if(list_empty(&thread_current()->children))
   return -1;
+  //get the child thread
+  for(struct list_elem *e = list_begin(&thread_current()->children);e!= list_end(&thread_current()->children);e = e->next){
+     struct thread *child = list_entry(e,struct thread,elem);
+     if(child->tid = child_tid){
+      child_thread = child;
+      list_remove(&child->elem);
+      sema_down(&child->child_parent_sync);
+     }
+  }
+  return child_thread->child_status;
 }
 
 /* Free the current process's resources. */

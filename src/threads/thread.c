@@ -92,6 +92,8 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init(&thread_current()->children);
+  sema_init(&thread_current()->child_parent_sync,0);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -183,6 +185,15 @@ thread_create (const char *name, int priority,
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
 
+  //link parent and child
+  //rowan
+  if(thread_current() != NULL){
+  struct thread *parent_thread = thread_current();
+  t->parent = parent_thread;
+  t->child_success = false;
+  sema_down(&t->child_parent_sync);
+  }
+   
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
   kf->eip = NULL;
