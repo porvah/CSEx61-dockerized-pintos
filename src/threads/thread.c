@@ -92,11 +92,6 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
-  list_init(&thread_current()->children);
-  list_init(&thread_current()->locks);
-  list_init(&thread_current()->open_files);
-  sema_init(&thread_current()->child_parent_sync,0);
-  sema_init(&thread_current()->wait,0);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -190,14 +185,12 @@ thread_create (const char *name, int priority,
 
   //link parent and child
   //rowan
-  if(thread_current() != NULL){
   struct thread *parent_thread = thread_current();
   t->parent = parent_thread;
   t->child_success = false;
   t->first_wait = true;
   /*this sema_down should be written in execute system call function*/
   //sema_down(&t->child_parent_sync);
-  }
    
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -472,6 +465,12 @@ init_thread (struct thread *t, const char *name, int priority)
   ASSERT (t != NULL);
   ASSERT (PRI_MIN <= priority && priority <= PRI_MAX);
   ASSERT (name != NULL);
+
+  list_init(&thread_current()->children);
+  list_init(&thread_current()->locks);
+  list_init(&thread_current()->open_files);
+  sema_init(&thread_current()->child_parent_sync,0);
+  sema_init(&thread_current()->wait,0);
 
   memset (t, 0, sizeof *t);
   t->status = THREAD_BLOCKED;

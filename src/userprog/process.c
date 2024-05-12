@@ -64,17 +64,15 @@ start_process (void *file_name_)
   success = load (file_name, &if_.eip, &if_.esp);
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success){ 
     //rowan
     sema_up(&thread_current()->child_parent_sync);
     //rowan
+  if (!success){ 
     thread_exit ();
   }
-
   //rowan
   if(thread_current()->parent != NULL){
     list_push_back(&thread_current()->child_elem,&thread_current()->parent->children);
-    sema_up(&thread_current()->child_parent_sync);
     thread_current()->child_success = success;
   }
   /* Start the user process by simulating a return from an
@@ -102,16 +100,17 @@ process_wait (tid_t child_tid UNUSED)
 {
   struct thread *child_thread;
   if(list_empty(&thread_current()->children))
-  return -1;
+    return -1;
   //get the child thread
   for(struct list_elem *e = list_begin(&thread_current()->children);e!= list_end(&thread_current()->children);e = e->next){
      struct thread *child = list_entry(e,struct thread,child_elem);
      if(child->tid = child_tid){
       if(child->first_wait){
       child_thread = child;
-      list_remove(&child->child_elem);
-      sema_down(&child->wait);
+      //list_remove(&child->child_elem);
       child->first_wait = false;
+      sema_down(&child->wait);
+      list_remove(&child->child_elem);
       return child_thread->child_status;
       }
      }
@@ -144,10 +143,11 @@ process_exit (void)
  if(cur->exec_file != NULL)
   file_close(cur->exec_file);
  
+  cur->status = 0;
+
   if(cur->parent != NULL){
-        cur->status = -1;
-        sema_up(&cur->wait);
-        cur->parent = NULL;
+    sema_up(&cur->wait);
+    cur->parent = NULL;
   }
  //rowan
 
