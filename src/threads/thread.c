@@ -93,7 +93,10 @@ thread_init (void)
   list_init (&ready_list);
   list_init (&all_list);
   list_init(&thread_current()->children);
+  list_init(&thread_current()->locks);
+  list_init(&thread_current()->open_files);
   sema_init(&thread_current()->child_parent_sync,0);
+  sema_init(&thread_current()->wait,0);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -191,7 +194,8 @@ thread_create (const char *name, int priority,
   struct thread *parent_thread = thread_current();
   t->parent = parent_thread;
   t->child_success = false;
-  sema_down(&t->child_parent_sync);
+  /*this sema_down should be written in execute system call function*/
+  //sema_down(&t->child_parent_sync);
   }
    
   /* Stack frame for kernel_thread(). */

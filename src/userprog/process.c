@@ -17,6 +17,7 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/synch.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -104,10 +105,10 @@ process_wait (tid_t child_tid UNUSED)
   return -1;
   //get the child thread
   for(struct list_elem *e = list_begin(&thread_current()->children);e!= list_end(&thread_current()->children);e = e->next){
-     struct thread *child = list_entry(e,struct thread,elem);
+     struct thread *child = list_entry(e,struct thread,child_elem);
      if(child->tid = child_tid){
       child_thread = child;
-      list_remove(&child->elem);
+      list_remove(&child->child_elem);
       sema_down(&child->wait);
      }
   }
@@ -120,6 +121,30 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+  //rowan
+  //release all resources
+ while(!list_empty(&cur->children))
+  list_pop_front(&cur->children);
+//we will insert the file into the list in open system call
+ while(!list_empty(&cur->open_files)){
+  struct file *f  = list_pop_front(&cur->open_files);
+  file_close(f);
+ }
+
+ while(!list_empty(&cur->locks)){
+  struct lock *l = list_pop_front(&cur->locks);
+  lock_release(l);
+ }
+
+ if(cur->exec_file != NULL)
+  file_close(cur->exec_file);
+ 
+  if(cur->parent != NULL){
+        cur->status = -1;
+        sema_up(&cur->wait);
+        cur->parent = NULL;
+  }
+ //rowan
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
