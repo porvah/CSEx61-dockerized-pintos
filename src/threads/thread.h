@@ -102,6 +102,7 @@ struct thread
     int child_status;
     tid_t waiting;
     struct semaphore *child_parent_sync;
+    struct semaphore *wait;
     bool child_success;
 #ifdef USERPROG
 #endif

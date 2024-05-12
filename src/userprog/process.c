@@ -72,7 +72,7 @@ start_process (void *file_name_)
 
   //rowan
   if(thread_current()->parent != NULL){
-    list_insert(&thread_current()->child_elem,&thread_current()->parent->children);
+    list_push_back(&thread_current()->child_elem,&thread_current()->parent->children);
     sema_up(&thread_current()->child_parent_sync);
     thread_current()->child_success = success;
   }
@@ -108,7 +108,7 @@ process_wait (tid_t child_tid UNUSED)
      if(child->tid = child_tid){
       child_thread = child;
       list_remove(&child->elem);
-      sema_down(&child->child_parent_sync);
+      sema_down(&child->wait);
      }
   }
   return child_thread->child_status;
