@@ -107,12 +107,17 @@ process_wait (tid_t child_tid UNUSED)
   for(struct list_elem *e = list_begin(&thread_current()->children);e!= list_end(&thread_current()->children);e = e->next){
      struct thread *child = list_entry(e,struct thread,child_elem);
      if(child->tid = child_tid){
+      if(child->first_wait){
       child_thread = child;
       list_remove(&child->child_elem);
       sema_down(&child->wait);
+      child->first_wait = false;
+      return child_thread->child_status;
+      }
      }
   }
-  return child_thread->child_status;
+  return -1;
+  
 }
 
 /* Free the current process's resources. */

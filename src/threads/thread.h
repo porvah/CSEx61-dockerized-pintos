@@ -109,6 +109,7 @@ struct thread
     struct semaphore *child_parent_sync;
     struct semaphore *wait;
     bool child_success;
+    bool first_wait;
     //for exit
     struct list open_files;
     struct file *exec_file;

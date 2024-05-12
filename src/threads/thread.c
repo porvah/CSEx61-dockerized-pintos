@@ -194,6 +194,7 @@ thread_create (const char *name, int priority,
   struct thread *parent_thread = thread_current();
   t->parent = parent_thread;
   t->child_success = false;
+  t->first_wait = true;
   /*this sema_down should be written in execute system call function*/
   //sema_down(&t->child_parent_sync);
   }
