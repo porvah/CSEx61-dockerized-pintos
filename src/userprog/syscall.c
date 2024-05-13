@@ -159,7 +159,8 @@ void validate_void_ptr(const void* ptr)
 void handle_exit(int status)
 {
   // exit  handling //
-  thread_exit();
+  thread_current()->status = status;
+  process_exit();
 }
 void handle_create(struct intr_frame *f)
 {

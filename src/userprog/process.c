@@ -49,11 +49,11 @@ process_execute (const char *file_name)
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name_copy, PRI_DEFAULT, start_process, fn_copy);
-  sema_down(thread_current()->child_parent_sync);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   
   free(file_name_copy); // free the allocated memory for the file_name_copy
+  sema_down(thread_current()->child_parent_sync);
   return tid;
 }
 
@@ -104,7 +104,7 @@ start_process (void *file_name_)
    does nothing. */
 //rowan
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid ) 
 {
   struct thread *child_thread;
   if(list_empty(&thread_current()->children))
@@ -154,7 +154,7 @@ process_exit (void)
  if(cur->exec_file != NULL)
   file_close(cur->exec_file);
   cur->exited = true;
-  cur->status = 0;
+  //cur->status = 0;
 
   if(cur->parent != NULL){
     sema_up(&cur->wait);
