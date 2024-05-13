@@ -17,6 +17,7 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/synch.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -38,10 +39,21 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  ///////////// Extract the executable name (1st token) from the file_name /////////////
+  char *file_name_copy = malloc(strlen(file_name) + 1);
+  strlcpy(file_name_copy, file_name, strlen(file_name) + 1);
+
+  char *save_ptr;
+  file_name_copy = strtok_r(file_name_copy, " ", &save_ptr); // get only the first token
+  //////////////////////////////////////////////////////////////////////////////
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (file_name_copy, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
+  
+  free(file_name_copy); // free the allocated memory for the file_name_copy
+  sema_down(thread_current()->child_parent_sync);
   return tid;
 }
 
@@ -60,12 +72,17 @@ start_process (void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
-
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success) 
+  if(thread_current()->parent != NULL && success){
+    list_push_back(&thread_current()->child_elem,&thread_current()->parent->children);
+    thread_current()->child_success = success;
+  }
+  sema_up(&thread_current()->parent->child_parent_sync);
+  if (!success){ 
     thread_exit ();
-
+  }
+  sema_down(&thread_current()->child_parent_sync);
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -85,10 +102,32 @@ start_process (void *file_name_)
 
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
+//rowan
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid ) 
 {
+  struct thread *child_thread;
+  if(list_empty(&thread_current()->children))
+    return -1;
+  //get the child thread
+  for(struct list_elem *e = list_begin(&thread_current()->children);e!= list_end(&thread_current()->children);e = e->next){
+    struct thread *child = list_entry(e,struct thread,child_elem);
+    if(child->tid = child_tid){
+      if(child->first_wait){
+        child_thread = child;
+        //list_remove(&child->child_elem);
+        child->first_wait = false;
+        sema_up(&child->child_parent_sync);
+        sema_down(&child->wait);
+        list_remove(&child->child_elem);
+        if(!child->exited) return -1;
+        return child_thread->child_status;
+      }
+      break;
+    }
+  }
   return -1;
+  
 }
 
 /* Free the current process's resources. */
@@ -97,6 +136,31 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+  //rowan
+  //release all resources
+ while(!list_empty(&cur->children))
+  list_pop_front(&cur->children);
+//we will insert the file into the list in open system call
+ while(!list_empty(&cur->open_files)){
+  struct file *f  = list_pop_front(&cur->open_files);
+  file_close(f);
+ }
+
+ while(!list_empty(&cur->locks)){
+  struct lock *l = list_pop_front(&cur->locks);
+  lock_release(l);
+ }
+
+ if(cur->exec_file != NULL)
+  file_close(cur->exec_file);
+  cur->exited = true;
+  //cur->status = 0;
+
+  if(cur->parent != NULL){
+    sema_up(&cur->wait);
+    cur->parent = NULL;
+  }
+ //rowan
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -307,6 +371,51 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
+///////////////////  Push the arguments to the stack  ///////////////////////
+
+
+  /* Push the arguments themselves to the stack */
+  char *token, *save_ptr;
+  char *argv[128]; // array to store the arguments (ASSUMPTION: the number of arguments is less than 128)
+  int argc = 0; // counter for the number of arguments
+  for (token = strtok_r(file_name, " ", &save_ptr); token != NULL; token = strtok_r(NULL, " ", &save_ptr)) {
+    *esp -= strlen(token) + 1; // move the stack pointer to store the argument
+    argv[argc++] = *esp; // store the address of the argument in the array
+    memcpy(*esp, token, strlen(token) + 1); // copy the argument to the stack
+  }
+
+  // word-align the stack pointer
+  while((uint32_t)*esp % 4 != 0) {
+    *esp -= sizeof(char);
+    char c = 0;
+    memcpy(*esp, &c, sizeof(char)); // push a null character to the stack
+  }
+
+  // push a null pointer to the stack
+  *esp -= sizeof(char*);
+  char *null_pointer = NULL;
+  memcpy(*esp, &null_pointer, sizeof(char*));
+
+  // push the addresses of the arguments to the stack
+  for(int i = argc - 1; i >= 0; i--) {
+    *esp -= sizeof(char*);
+    memcpy(*esp, &argv[i], sizeof(char*));
+  }
+
+  // push the address of the first argument to the stack
+  char *argv_address = *esp;
+  *esp -= sizeof(char*);
+  memcpy(*esp, &argv_address, sizeof(char*));
+
+  // push the number of arguments to the stack
+  *esp -= sizeof(int);
+  memcpy(*esp, &argc, sizeof(int));
+
+  // push a void return address to the stack
+  *esp -= sizeof(void*);
+  memcpy(*esp, &argv[argc], sizeof(void*));
+
+
 
   success = true;
 
