@@ -17,6 +17,7 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/synch.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -48,6 +49,7 @@ process_execute (const char *file_name)
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name_copy, PRI_DEFAULT, start_process, fn_copy);
+  sema_down(thread_current()->child_parent_sync);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   
@@ -70,12 +72,17 @@ start_process (void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
-
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success) 
+  if(thread_current()->parent != NULL && success){
+    list_push_back(&thread_current()->child_elem,&thread_current()->parent->children);
+    thread_current()->child_success = success;
+  }
+  sema_up(&thread_current()->parent->child_parent_sync);
+  if (!success){ 
     thread_exit ();
-
+  }
+  sema_down(&thread_current()->child_parent_sync);
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -95,10 +102,32 @@ start_process (void *file_name_)
 
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
+//rowan
 int
 process_wait (tid_t child_tid UNUSED) 
 {
+  struct thread *child_thread;
+  if(list_empty(&thread_current()->children))
+    return -1;
+  //get the child thread
+  for(struct list_elem *e = list_begin(&thread_current()->children);e!= list_end(&thread_current()->children);e = e->next){
+    struct thread *child = list_entry(e,struct thread,child_elem);
+    if(child->tid = child_tid){
+      if(child->first_wait){
+        child_thread = child;
+        //list_remove(&child->child_elem);
+        child->first_wait = false;
+        sema_up(&child->child_parent_sync);
+        sema_down(&child->wait);
+        list_remove(&child->child_elem);
+        if(!child->exited) return -1;
+        return child_thread->child_status;
+      }
+      break;
+    }
+  }
   return -1;
+  
 }
 
 /* Free the current process's resources. */
@@ -107,6 +136,31 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+  //rowan
+  //release all resources
+ while(!list_empty(&cur->children))
+  list_pop_front(&cur->children);
+//we will insert the file into the list in open system call
+ while(!list_empty(&cur->open_files)){
+  struct file *f  = list_pop_front(&cur->open_files);
+  file_close(f);
+ }
+
+ while(!list_empty(&cur->locks)){
+  struct lock *l = list_pop_front(&cur->locks);
+  lock_release(l);
+ }
+
+ if(cur->exec_file != NULL)
+  file_close(cur->exec_file);
+  cur->exited = true;
+  cur->status = 0;
+
+  if(cur->parent != NULL){
+    sema_up(&cur->wait);
+    cur->parent = NULL;
+  }
+ //rowan
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */

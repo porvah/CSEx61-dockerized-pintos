@@ -179,10 +179,20 @@ thread_create (const char *name, int priority,
   if (t == NULL)
     return TID_ERROR;
 
+
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
 
+  //link parent and child
+  //rowan
+  struct thread *parent_thread = thread_current();
+  t->parent = parent_thread;
+  t->child_success = false;
+  t->first_wait = true;
+  /*this sema_down should be written in execute system call function*/
+  //sema_down(&t->child_parent_sync);
+   
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
   kf->eip = NULL;
@@ -457,6 +467,12 @@ init_thread (struct thread *t, const char *name, int priority)
   ASSERT (PRI_MIN <= priority && priority <= PRI_MAX);
   ASSERT (name != NULL);
 
+  list_init(&thread_current()->children);
+  list_init(&thread_current()->locks);
+  list_init(&thread_current()->open_files);
+  sema_init(&thread_current()->child_parent_sync,0);
+  sema_init(&thread_current()->wait,0);
+  t->exited = false;
   memset (t, 0, sizeof *t);
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
