@@ -1,10 +1,17 @@
 #include "userprog/syscall.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
-#include "lib/user/syscall.h"
+// #include "lib/user/syscall.h"
+#include "filesys/filesys.h"
 #include "threads/synch.h"
+
+struct file_elem {
+    int fd;
+    struct list_elem elem;
+};
 
 struct lock files_lock;
 
@@ -18,11 +25,38 @@ syscall_init (void)
   lock_init(&files_lock);
 }
 
+struct file_elem* get_file(struct list* files_opened, int fd) {
+    for (struct list_elem* e = list_begin(files_opened); e != list_end(files_opened); e = list_next(e)) {
+        struct file_elem* cur_file = list_entry(e, struct file_elem, elem);
+        if (cur_file->fd == fd)
+            return cur_file;
+    }
+    return NULL;
+}
+
+void insert_file(struct list* files_opened, int fd) {
+    struct file_elem* cur_file = (struct file_elem*) malloc(sizeof(struct file_elem));
+    cur_file->fd = fd;
+
+    list_push_back(files_opened, &(cur_file->elem));
+}
+
+void remove_file(struct list* files_opened, int fd) {
+    for (struct list_elem* e = list_begin(files_opened); e != list_end(files_opened); e = list_next(e)) {
+        struct file_elem* cur_file = list_entry(e, struct file_elem, elem);
+        if (cur_file->fd == fd) {
+            list_remove(e);
+            free(cur_file);
+            return;
+        }
+    }
+}
+
 void handle_create(struct intr_frame *f) {
     f->esp += 4;
-    const char* file = (const char *)f->esp;
+    const char* file = *(const char **)(f->esp);
     f->esp += 4;
-    unsigned initial_size = (unsigned)f->esp;
+    unsigned initial_size = *(unsigned*)(f->esp);
 
     lock_acquire(&files_lock);
     f->eax = (uint32_t) create(file, initial_size);
@@ -31,7 +65,7 @@ void handle_create(struct intr_frame *f) {
 
 void handle_remove(struct intr_frame *f) {
     f->esp += 4;
-    const char* file = (const char *)f->esp;
+    const char* file = *(const char **)(f->esp);
 
     lock_acquire(&files_lock);
     f->eax = (uint32_t) remove(file);
@@ -40,16 +74,20 @@ void handle_remove(struct intr_frame *f) {
 
 void handle_open(struct intr_frame *f) {
     f->esp += 4;
-    const char* file = (const char *)f->esp;
+    const char* file = *(const char **)(f->esp);
 
     lock_acquire(&files_lock);
-    f->eax = (uint32_t) open(file);
+    uint32_t res = (uint32_t) open(file);
     lock_release(&files_lock);
+
+    f->eax = res;
+    if (res != -1)
+        insert_file(&(thread_current()->files_opened), res);
 }
 
 void handle_filesize(struct intr_frame *f) {
     f->esp += 4;
-    int fd = (int)f->esp;
+    int fd = *(int*)(f->esp);
 
     lock_acquire(&files_lock);
     f->eax = (uint32_t) filesize(fd);
@@ -58,11 +96,11 @@ void handle_filesize(struct intr_frame *f) {
 
 void handle_read(struct intr_frame *f) {
     f->esp += 4;
-    int fd = (int)f->esp;
+    int fd = *(int*)(f->esp);
     f->esp += 4;
-    void* buffer = (void *)f->esp;
+    void* buffer = *(void **)(f->esp);
     f->esp += 4;
-    unsigned length = (unsigned)f->esp;
+    unsigned length = *(unsigned*)(f->esp);
 
     lock_acquire(&files_lock);
     f->eax = (uint32_t) read(fd, buffer, length);
@@ -71,11 +109,11 @@ void handle_read(struct intr_frame *f) {
 
 void handle_write(struct intr_frame *f) {
     f->esp += 4;
-    int fd = (int)f->esp;
+    int fd = *(int*)(f->esp);
     f->esp += 4;
-    const void* buffer = (const void *)f->esp;
+    const void* buffer = *(const void **)(f->esp);
     f->esp += 4;
-    unsigned length = (unsigned)f->esp;
+    unsigned length = *(unsigned*)(f->esp);
 
     lock_acquire(&files_lock);
     f->eax = (uint32_t) write(fd, buffer, length);
@@ -84,9 +122,9 @@ void handle_write(struct intr_frame *f) {
 
 void handle_seek(struct intr_frame *f) {
     f->esp += 4;
-    int fd = (int)f->esp;
+    int fd = *(int*)(f->esp);
     f->esp += 4;
-    unsigned position = (unsigned)f->esp;
+    unsigned position = *(unsigned*)(f->esp);
 
     lock_acquire(&files_lock);
     seek(fd, position);
@@ -95,7 +133,7 @@ void handle_seek(struct intr_frame *f) {
 
 void handle_tell(struct intr_frame *f) {
     f->esp += 4;
-    int fd = (int)f->esp;
+    int fd = *(int*)(f->esp);
 
     lock_acquire(&files_lock);
     f->eax = (uint32_t) tell(fd);
@@ -104,11 +142,13 @@ void handle_tell(struct intr_frame *f) {
 
 void handle_close(struct intr_frame *f) {
     f->esp += 4;
-    int fd = (int)f->esp;
+    int fd = *(int*)(f->esp);
 
     lock_acquire(&files_lock);
     close(fd);
     lock_release(&files_lock);
+
+    remove_file(&(thread_current()->files_opened), fd);
 }
 
 static void
