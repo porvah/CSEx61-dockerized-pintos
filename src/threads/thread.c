@@ -179,6 +179,7 @@ thread_create (const char *name, int priority,
   if (t == NULL)
     return TID_ERROR;
 
+
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
@@ -471,7 +472,7 @@ init_thread (struct thread *t, const char *name, int priority)
   list_init(&thread_current()->open_files);
   sema_init(&thread_current()->child_parent_sync,0);
   sema_init(&thread_current()->wait,0);
-
+  t->exited = false;
   memset (t, 0, sizeof *t);
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);

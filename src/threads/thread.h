@@ -105,6 +105,7 @@ struct thread
     struct list_elem child_elem;
     struct thread *parent;
     int child_status;
+    bool exited;
     tid_t waiting;
     struct semaphore *child_parent_sync;
     struct semaphore *wait;

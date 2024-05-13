@@ -41,7 +41,7 @@ process_execute (const char *file_name)
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
-
+  sema_down(thread_current()->child_parent_sync);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   return tid;
@@ -64,17 +64,15 @@ start_process (void *file_name_)
   success = load (file_name, &if_.eip, &if_.esp);
   /* If load failed, quit. */
   palloc_free_page (file_name);
-    //rowan
-    sema_up(&thread_current()->child_parent_sync);
-    //rowan
-  if (!success){ 
-    thread_exit ();
-  }
-  //rowan
-  if(thread_current()->parent != NULL){
+  if(thread_current()->parent != NULL && success){
     list_push_back(&thread_current()->child_elem,&thread_current()->parent->children);
     thread_current()->child_success = success;
   }
+  sema_up(&thread_current()->parent->child_parent_sync);
+  if (!success){ 
+    thread_exit ();
+  }
+  sema_down(&thread_current()->child_parent_sync);
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -103,17 +101,20 @@ process_wait (tid_t child_tid UNUSED)
     return -1;
   //get the child thread
   for(struct list_elem *e = list_begin(&thread_current()->children);e!= list_end(&thread_current()->children);e = e->next){
-     struct thread *child = list_entry(e,struct thread,child_elem);
-     if(child->tid = child_tid){
+    struct thread *child = list_entry(e,struct thread,child_elem);
+    if(child->tid = child_tid){
       if(child->first_wait){
-      child_thread = child;
-      //list_remove(&child->child_elem);
-      child->first_wait = false;
-      sema_down(&child->wait);
-      list_remove(&child->child_elem);
-      return child_thread->child_status;
+        child_thread = child;
+        //list_remove(&child->child_elem);
+        child->first_wait = false;
+        sema_up(&child->child_parent_sync);
+        sema_down(&child->wait);
+        list_remove(&child->child_elem);
+        if(!child->exited) return -1;
+        return child_thread->child_status;
       }
-     }
+      break;
+    }
   }
   return -1;
   
@@ -142,7 +143,7 @@ process_exit (void)
 
  if(cur->exec_file != NULL)
   file_close(cur->exec_file);
- 
+  cur->exited = true;
   cur->status = 0;
 
   if(cur->parent != NULL){
