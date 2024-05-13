@@ -39,11 +39,21 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  ///////////// Extract the executable name (1st token) from the file_name /////////////
+  char *file_name_copy = malloc(strlen(file_name) + 1);
+  strlcpy(file_name_copy, file_name, strlen(file_name) + 1);
+
+  char *save_ptr;
+  file_name_copy = strtok_r(file_name_copy, " ", &save_ptr); // get only the first token
+  //////////////////////////////////////////////////////////////////////////////
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (file_name_copy, PRI_DEFAULT, start_process, fn_copy);
   sema_down(thread_current()->child_parent_sync);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
+  
+  free(file_name_copy); // free the allocated memory for the file_name_copy
   return tid;
 }
 
@@ -361,6 +371,51 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
+///////////////////  Push the arguments to the stack  ///////////////////////
+
+
+  /* Push the arguments themselves to the stack */
+  char *token, *save_ptr;
+  char *argv[128]; // array to store the arguments (ASSUMPTION: the number of arguments is less than 128)
+  int argc = 0; // counter for the number of arguments
+  for (token = strtok_r(file_name, " ", &save_ptr); token != NULL; token = strtok_r(NULL, " ", &save_ptr)) {
+    *esp -= strlen(token) + 1; // move the stack pointer to store the argument
+    argv[argc++] = *esp; // store the address of the argument in the array
+    memcpy(*esp, token, strlen(token) + 1); // copy the argument to the stack
+  }
+
+  // word-align the stack pointer
+  while((uint32_t)*esp % 4 != 0) {
+    *esp -= sizeof(char);
+    char c = 0;
+    memcpy(*esp, &c, sizeof(char)); // push a null character to the stack
+  }
+
+  // push a null pointer to the stack
+  *esp -= sizeof(char*);
+  char *null_pointer = NULL;
+  memcpy(*esp, &null_pointer, sizeof(char*));
+
+  // push the addresses of the arguments to the stack
+  for(int i = argc - 1; i >= 0; i--) {
+    *esp -= sizeof(char*);
+    memcpy(*esp, &argv[i], sizeof(char*));
+  }
+
+  // push the address of the first argument to the stack
+  char *argv_address = *esp;
+  *esp -= sizeof(char*);
+  memcpy(*esp, &argv_address, sizeof(char*));
+
+  // push the number of arguments to the stack
+  *esp -= sizeof(int);
+  memcpy(*esp, &argc, sizeof(int));
+
+  // push a void return address to the stack
+  *esp -= sizeof(void*);
+  memcpy(*esp, &argv[argc], sizeof(void*));
+
+
 
   success = true;
 
