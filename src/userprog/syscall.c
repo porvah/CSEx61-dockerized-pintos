@@ -177,7 +177,7 @@ int handle_exec(char* cmd_line)
   return process_execute(cmd_line);
 }
 
-int handle_wait(int pid)
+int handle_wait(tid_t pid)
 {
   return process_wait(pid);
 }
