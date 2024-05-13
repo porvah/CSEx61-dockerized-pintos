@@ -83,6 +83,7 @@ typedef int tid_t;
 struct open_file{
    int fd;
    struct file *ptr;
+   struct list_elem elem;
 };
 struct thread
   {
@@ -115,6 +116,8 @@ struct thread
     struct list open_files;
     struct file *exec_file;
     struct list locks;
+    
+    // struct list files_opened;
 #ifdef USERPROG
 #endif
 
