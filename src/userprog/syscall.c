@@ -201,7 +201,10 @@ void handle_exit(int status)
 {
   // exit  handling //
   thread_current()->status = status;
-  process_exit();
+
+  printf("%s: exit(%d)\n", thread_current()->name, status);
+
+  thread_exit();
 }
 void handle_create(struct intr_frame *f)
 {
