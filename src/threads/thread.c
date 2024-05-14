@@ -458,11 +458,28 @@ init_thread (struct thread *t, const char *name, int priority)
   ASSERT (name != NULL);
 
   memset (t, 0, sizeof *t);
+
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+
+  list_init(&t->children);
+  list_init(&t->open_files);
+
+  sema_init(&t->child_parent_sync, 0);
+  sema_init(&t->parent_wait, 0);
+
+  t->child_success = false;
+  t->parent_wait_tid = -1;
+  t->child_status = -1;
+  t->exit_status = 0;
+
+  if (t == initial_thread)
+      t->parent = NULL;
+  else
+      t->parent = thread_current();
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
