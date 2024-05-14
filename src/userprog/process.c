@@ -151,24 +151,26 @@ process_exit (void)
   }
   cur->parent = NULL;
   
-  struct list all_open_files = cur->open_files;
-  while(!list_empty(&all_open_files)) {
-      struct file_elem* tmp = list_entry(list_pop_front(&all_open_files),struct thread,child_elem);
-      //list_remove(&tmp->elem);
-      file_close(tmp->ptr);
+  struct list* all_open_files = &cur->open_files;
+  while(!list_empty(all_open_files)) {
+    //ASSERT(&all_open_files == NULL);
+    struct list_elem* e = list_pop_front(all_open_files);
+    struct file_elem* tmp = list_entry(e,struct file_elem, elem);
+    file_close(tmp->ptr);
   }
-
-  struct list children = cur->children;
-  while(!list_empty(&children)) {
-      struct thread* tmp = list_entry(list_pop_front(&children),struct thread,child_elem);
+  
+  struct list* children = &cur->children;
+  while(!list_empty(children)) {
+      struct thread* tmp = list_entry(list_pop_front(children),struct thread,child_elem);
       sema_up(&tmp->child_parent_sync);
       tmp->parent = NULL;
   }
+  
 
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
-  list_remove(&cur->allelem);
+  //list_remove(&cur->allelem);
   pd = cur->pagedir;
   if (pd != NULL) 
     {
@@ -183,7 +185,8 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-     free(cur);
+     //free(cur);
+  
 }
 
 /* Sets up the CPU for running user code in the current

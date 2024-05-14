@@ -155,10 +155,12 @@ void handle_exit(int status) {
     first_name = strtok_r(full_name, " ", &rest_name);
 
     t->exit_status = status;
-
+    
+    //ASSERT(false);
     printf("%s: exit(%d)\n", first_name, status);
-
+    //process_exit();
     thread_exit();
+    //free(t);
 }
 void handle_create(struct intr_frame *f)
 {
