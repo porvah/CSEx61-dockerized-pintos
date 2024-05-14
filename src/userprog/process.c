@@ -108,12 +108,13 @@ process_wait (tid_t child_tid UNUSED)
     struct thread *cur_t = thread_current(), *child;
     struct list children = cur_t->children;
 
-    for (struct list_elem* e = list_begin(&children); e != list_end(&children); e = list_next(e)) {
+    for (struct list_elem* e = list_begin(&children); e != list_end(&children);) {
         struct thread* tmp = list_entry(e, struct thread, child_elem);
         if (tmp->tid == child_tid) {
             child = tmp;
             break;
         }
+        e = list_next(e);
     }
 
     if (child == NULL)
@@ -144,33 +145,30 @@ process_exit (void)
           sema_up(&par->parent_wait);
       }
   }
-
+  if(cur->exec_file != NULL){
   file_close(cur->exec_file);
   cur->exec_file = NULL;
+  }
   cur->parent = NULL;
   
   struct list all_open_files = cur->open_files;
-  for (struct list_elem* e = list_begin(&all_open_files); e != list_end(&all_open_files);) {
-      struct file_elem* tmp = list_entry(e, struct file_elem, elem);
+  while(!list_empty(&all_open_files)) {
+      struct file_elem* tmp = list_entry(list_pop_front(&all_open_files),struct thread,child_elem);
+      //list_remove(&tmp->elem);
       file_close(tmp->ptr);
-      e = list_next(e);
-      list_remove(&tmp->elem);
   }
 
   struct list children = cur->children;
-  for (struct list_elem* e = list_begin(&children); e != list_end(&children);) {
-      struct thread* tmp = list_entry(e, struct thread, child_elem);
-      tmp->parent = NULL;
-
-      e = list_next(e);
-      list_remove(&tmp->child_elem);
-
+  while(!list_empty(&children)) {
+      struct thread* tmp = list_entry(list_pop_front(&children),struct thread,child_elem);
       sema_up(&tmp->child_parent_sync);
+      tmp->parent = NULL;
   }
 
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
+  list_remove(&cur->allelem);
   pd = cur->pagedir;
   if (pd != NULL) 
     {
@@ -185,6 +183,7 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+     free(cur);
 }
 
 /* Sets up the CPU for running user code in the current

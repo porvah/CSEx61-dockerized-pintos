@@ -106,10 +106,11 @@ struct thread
     struct list open_files;
     struct file* exec_file;
     struct list locks;
-
-#ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+#ifdef USERPROG
+   //  /* Owned by userprog/process.c. */
+   //  uint32_t *pagedir;                  /* Page directory. */
 #endif
 
     /* Owned by thread.c. */
