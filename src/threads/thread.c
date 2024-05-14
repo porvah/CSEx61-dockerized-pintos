@@ -467,11 +467,11 @@ init_thread (struct thread *t, const char *name, int priority)
   ASSERT (PRI_MIN <= priority && priority <= PRI_MAX);
   ASSERT (name != NULL);
 
-  list_init(&thread_current()->children);
-  list_init(&thread_current()->locks);
-  list_init(&thread_current()->open_files);
-  sema_init(&thread_current()->child_parent_sync,0);
-  sema_init(&thread_current()->wait,0);
+  list_init(&t->children);
+  list_init(&t->locks);
+  list_init(&t->open_files);
+  sema_init(&t->child_parent_sync,0);
+  sema_init(&t->wait,0);
   t->exited = false;
   memset (t, 0, sizeof *t);
   t->status = THREAD_BLOCKED;
