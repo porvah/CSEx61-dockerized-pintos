@@ -56,6 +56,7 @@ process_execute (const char *file_name)
 static void
 start_process (void *file_name_)
 {
+  printf("started process \n");
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
@@ -106,12 +107,13 @@ int
 process_wait (tid_t child_tid UNUSED) 
 {
     struct thread *cur_t = thread_current(), *child;
-    struct list children = cur_t->children;
-
-    for (struct list_elem* e = list_begin(&children); e != list_end(&children);) {
+    struct list *children = &cur_t->children;
+    
+    for (struct list_elem* e = list_begin(children); e != list_end(children);) {
         struct thread* tmp = list_entry(e, struct thread, child_elem);
         if (tmp->tid == child_tid) {
             child = tmp;
+            cur_t->parent_wait_tid = child->tid;
             break;
         }
         e = list_next(e);
@@ -146,8 +148,8 @@ process_exit (void)
       }
   }
   if(cur->exec_file != NULL){
-  file_close(cur->exec_file);
-  cur->exec_file = NULL;
+    file_close(cur->exec_file);
+    cur->exec_file = NULL;
   }
   cur->parent = NULL;
   
@@ -161,11 +163,15 @@ process_exit (void)
   
   struct list* children = &cur->children;
   while(!list_empty(children)) {
-      struct thread* tmp = list_entry(list_pop_front(children),struct thread,child_elem);
-      sema_up(&tmp->child_parent_sync);
-      tmp->parent = NULL;
+    struct thread* tmp = list_entry(list_pop_front(children),struct thread,child_elem);
+    sema_up(&tmp->child_parent_sync);
+    tmp->parent = NULL;
   }
   
+  // struct list* locks = &cur->locks;
+  // while(!list_empty(locks)){
+  //   struct lock* tmp = list_entry(list_pop_front(locks),struct lock, elem);
+  // }
 
 
   /* Destroy the current process's page directory and switch back
