@@ -467,13 +467,14 @@ init_thread (struct thread *t, const char *name, int priority)
   ASSERT (PRI_MIN <= priority && priority <= PRI_MAX);
   ASSERT (name != NULL);
 
+  memset (t, 0, sizeof *t);
+
   list_init(&t->children);
   list_init(&t->locks);
   list_init(&t->open_files);
   sema_init(&t->child_parent_sync,0);
   sema_init(&t->wait,0);
   t->exited = false;
-  memset (t, 0, sizeof *t);
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;

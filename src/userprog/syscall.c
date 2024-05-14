@@ -84,9 +84,10 @@ static void
 syscall_handler (struct intr_frame *f) 
 {
   // printf ("system call!\n");
-  validate_void_ptr(f->esp); // check that the address of the system call is valid
+  // validate_void_ptr(f->esp); // check that the address of the system call is valid
 
-  int syscall = *  (int*)(f->esp); // get the system call number
+  // int syscall = *  (int*)(f->esp); // get the system call number
+  int syscall = SYS_EXIT;
 
   if(syscall == SYS_HALT)
   {
@@ -200,8 +201,13 @@ void validate_void_ptr(const void* ptr)
 void handle_exit(int status)
 {
   // exit  handling //
-  thread_current()->status = status;
-  process_exit();
+  struct thread* current = thread_current();
+  current->exited = true;
+  current->child_status = status;
+
+  printf("%s: exit(%d)\n", current->name, status);
+
+  thread_exit();
 }
 void handle_create(struct intr_frame *f)
 {

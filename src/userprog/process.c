@@ -53,7 +53,7 @@ process_execute (const char *file_name)
     palloc_free_page (fn_copy); 
   
   free(file_name_copy); // free the allocated memory for the file_name_copy
-  sema_down(thread_current()->child_parent_sync);
+  sema_down(&thread_current()->child_parent_sync);
   return tid;
 }
 
