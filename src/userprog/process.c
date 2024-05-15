@@ -105,15 +105,16 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-    struct thread *cur_t = thread_current(), *child;
+    struct thread *cur_t = thread_current(), *child = NULL;
     struct list *children = &cur_t->children;
     
     for (struct list_elem* e = list_begin(children); e != list_end(children);) {
         struct thread* tmp = list_entry(e, struct thread, child_elem);
         if (tmp->tid == child_tid && tmp->first_wait) {
             child = tmp;
-            tmp->first_wait = false;
+            child->first_wait = false;
             cur_t->parent_wait_tid = child->tid;
+            list_remove(&child->child_elem);
             break;
         }
         e = list_next(e);
@@ -121,8 +122,6 @@ process_wait (tid_t child_tid UNUSED)
 
     if (child == NULL)
         return -1;
-
-    list_remove(&child->child_elem);
 
     sema_up(&child->child_parent_sync);
     sema_down(&cur_t->parent_wait);
