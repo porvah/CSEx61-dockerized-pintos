@@ -45,6 +45,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 
   int syscall = *(int *)f->esp;
   
+  // printf("SYSCALL: %d\n", syscall);
   if (syscall == SYS_HALT)
   {
     handle_halt();
@@ -128,8 +129,8 @@ void validate_void_ptr(void* ptr) {
 }
 
 struct file_elem* get_file(int fd) {
-    struct list all_open_files = thread_current()->open_files;
-    for (struct list_elem* e = list_begin(&all_open_files); e != list_end(&all_open_files); e = list_next(e)) {
+    struct list* all_open_files = &thread_current()->open_files;
+    for (struct list_elem* e = list_begin(all_open_files); e != list_end(all_open_files); e = list_next(e)) {
         struct file_elem* cur_file = list_entry(e, struct file_elem, elem);
         if (cur_file->fd == fd)
             return cur_file;
@@ -169,9 +170,12 @@ void handle_create(struct intr_frame *f)
   f->esp += 4;
   unsigned initial_size = *(unsigned *)(f->esp);
 
-  lock_acquire(&files_lock);
-  f->eax = (uint32_t)filesys_create(file, initial_size);
-  lock_release(&files_lock);
+  if (file != NULL) {
+      lock_acquire(&files_lock);
+      f->eax = (uint32_t)filesys_create(file, initial_size);
+      lock_release(&files_lock);
+  } else 
+      handle_exit(-1);
 }
 void handle_remove(struct intr_frame *f)
 {
@@ -189,34 +193,46 @@ void handle_open(struct intr_frame *f)
   f->esp += 4;
   const char *file = *(const char **)(f->esp);
 
+  if (file == NULL) {
+      handle_exit(-1);
+      return;
+  }
+
   lock_acquire(&files_lock);
   struct file *cur_file = filesys_open(file);
   lock_release(&files_lock);
 
-  if (file != NULL)
+  if (cur_file != NULL)
   {
     struct file_elem *new_file = (struct file_elem *)malloc(sizeof(struct file_elem));
     new_file->fd = global_fd;
     new_file->ptr = cur_file;
 
     struct list_elem *e = &(new_file->elem);
-    list_push_back(&thread_current()->open_files, e);
+    list_push_front(&thread_current()->open_files, e);
 
     f->eax = new_file->fd;
 
     lock_acquire(&files_lock);
     global_fd++;
     lock_release(&files_lock);
-  }
+  } else 
+    f->eax = -1;
+
 }
 void handle_filesize(struct intr_frame *f)
 {
   f->esp += 4;
   int fd = *(int *)(f->esp);
+  struct file_elem *cur_file = get_file(fd);
 
-  lock_acquire(&files_lock);
-  f->eax = (uint32_t)file_length(fd);
-  lock_release(&files_lock);
+  if (cur_file == NULL) {
+      f->eax = -1;
+  } else {
+      lock_acquire(&files_lock);
+      f->eax = (uint32_t)file_length(cur_file->ptr);
+      lock_release(&files_lock);
+  }
 }
 void handle_read(struct intr_frame *f)
 {
@@ -227,11 +243,27 @@ void handle_read(struct intr_frame *f)
   f->esp += 4;
   unsigned length = *(unsigned *)(f->esp);
 
-  struct file_elem *cur_file = get_file(fd);
+  validate_void_ptr(buffer);
 
-  lock_acquire(&files_lock);
-  f->eax = (uint32_t)file_read(cur_file->ptr, buffer, length);
-  lock_release(&files_lock);
+  if (fd == 0) {
+      for (int i = 0; i < length; ++i) {
+          lock_acquire(&files_lock);
+          char c = input_getc();
+          lock_release(&files_lock);
+
+          buffer += c;
+      }
+      f->eax = length;
+  } else {
+      struct file_elem *cur_file = get_file(fd);
+
+      if (cur_file != NULL) {
+          lock_acquire(&files_lock);
+          f->eax = (uint32_t)file_read(cur_file->ptr, buffer, length);
+          lock_release(&files_lock);
+      } else 
+        f->eax = -1;
+  }
 }
 void handle_write(struct intr_frame *f)
 {
@@ -241,6 +273,8 @@ void handle_write(struct intr_frame *f)
   const void *buffer = *(const void **)(f->esp);
   f->esp += 4;
   unsigned length = *(unsigned *)(f->esp);
+
+  validate_void_ptr(buffer);
 
   if (fd == 1) {
       lock_acquire(&files_lock);
