@@ -285,6 +285,7 @@ void handle_write(struct intr_frame *f)
       struct file_elem *cur_file = get_file(fd);
       if (cur_file == NULL) {
           f->eax = -1;
+          return;
       }
 
       lock_acquire(&files_lock);
@@ -299,18 +300,28 @@ void handle_seek(struct intr_frame *f)
   f->esp += 4;
   unsigned position = *(unsigned *)(f->esp);
 
-  lock_acquire(&files_lock);
-  file_seek(fd, position);
-  lock_release(&files_lock);
+  struct file_elem *cur_file = get_file(fd);
+
+  if (cur_file != NULL) {
+      lock_acquire(&files_lock);
+      file_seek(cur_file->ptr, position);
+      lock_release(&files_lock);
+  } else 
+      f->eax = -1;
 }
 void handle_tell(struct intr_frame *f)
 {
   f->esp += 4;
   int fd = *(int *)(f->esp);
 
-  lock_acquire(&files_lock);
-  f->eax = (uint32_t)file_tell(fd);
-  lock_release(&files_lock);
+  struct file_elem *cur_file = get_file(fd);
+
+  if (cur_file != NULL) {
+      lock_acquire(&files_lock);
+      f->eax = (uint32_t)file_tell(cur_file);
+      lock_release(&files_lock);
+  } else 
+      f->eax = -1;
 }
 void handle_close(struct intr_frame *f)
 {
@@ -318,9 +329,12 @@ void handle_close(struct intr_frame *f)
   int fd = *(int *)(f->esp);
   struct file_elem *cur_file = get_file(fd);
 
-  lock_acquire(&files_lock);
-  file_close(cur_file->ptr);
-  lock_release(&files_lock);
+  if (cur_file != NULL) {
+      lock_acquire(&files_lock);
+      file_close(cur_file->ptr);
+      lock_release(&files_lock);
 
-  list_remove(&cur_file->elem);
+      list_remove(&cur_file->elem);
+  } else 
+      f->eax = -1;
 }

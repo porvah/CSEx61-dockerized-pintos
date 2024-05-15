@@ -164,6 +164,7 @@ void process_exit(void)
     struct list_elem *e = list_pop_front(all_open_files);
     struct file_elem *tmp = list_entry(e, struct file_elem, elem);
     file_close(tmp->ptr);
+    free(tmp);
   }
 
   struct list *children = &cur->children;
@@ -313,6 +314,7 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
     printf("load: %s: open failed\n", file_name);
     goto done;
   }
+  t->exec_file = file;
 
   /* Read and verify executable header. */
   if (file_read(file, &ehdr, sizeof ehdr) != sizeof ehdr || memcmp(ehdr.e_ident, "\177ELF\1\1\1", 7) || ehdr.e_type != 2 || ehdr.e_machine != 3 || ehdr.e_version != 1 || ehdr.e_phentsize != sizeof(struct Elf32_Phdr) || ehdr.e_phnum > 1024)
@@ -434,7 +436,8 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
 
 done:
   /* We arrive here whether the load is successful or not. */
-  file_close(file);
+  if (success)
+      file_deny_write(file);
   return success;
 }
 
