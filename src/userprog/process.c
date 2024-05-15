@@ -110,8 +110,9 @@ process_wait (tid_t child_tid UNUSED)
     
     for (struct list_elem* e = list_begin(children); e != list_end(children);) {
         struct thread* tmp = list_entry(e, struct thread, child_elem);
-        if (tmp->tid == child_tid) {
+        if (tmp->tid == child_tid && tmp->first_wait) {
             child = tmp;
+            tmp->first_wait = false;
             cur_t->parent_wait_tid = child->tid;
             break;
         }

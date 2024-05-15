@@ -103,6 +103,7 @@ struct thread
     int exit_status;
     tid_t parent_wait_tid;
     bool child_success;
+    bool first_wait;
     struct list open_files;
     struct file* exec_file;
     struct list locks;
