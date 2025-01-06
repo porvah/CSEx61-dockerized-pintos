@@ -289,10 +289,16 @@ thread_exit (void)
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us
      when it calls thread_schedule_tail(). */
+  // static int count = 0;
+  // printf("%d \n", count++);
+
   intr_disable ();
+
   list_remove (&thread_current()->allelem);
   thread_current ()->status = THREAD_DYING;
+  //ASSERT(false);
   schedule ();
+  
   NOT_REACHED ();
 }
 
@@ -458,11 +464,29 @@ init_thread (struct thread *t, const char *name, int priority)
   ASSERT (name != NULL);
 
   memset (t, 0, sizeof *t);
+
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+
+  list_init(&t->children);
+  list_init(&t->open_files);
+
+  sema_init(&t->child_parent_sync, 0);
+  sema_init(&t->parent_wait, 0);
+
+  t->child_success = false;
+  t->first_wait = true;
+  t->parent_wait_tid = -1;
+  t->child_status = -1;
+  t->exit_status = 0;
+
+  if (t == initial_thread)
+      t->parent = NULL;
+  else
+      t->parent = thread_current();
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
@@ -515,6 +539,7 @@ next_thread_to_run (void)
 void
 thread_schedule_tail (struct thread *prev)
 {
+  
   struct thread *cur = running_thread ();
   
   ASSERT (intr_get_level () == INTR_OFF);
@@ -540,6 +565,7 @@ thread_schedule_tail (struct thread *prev)
       ASSERT (prev != cur);
       palloc_free_page (prev);
     }
+  
 }
 
 /* Schedules a new process.  At entry, interrupts must be off and
@@ -552,10 +578,11 @@ thread_schedule_tail (struct thread *prev)
 static void
 schedule (void) 
 {
+  
   struct thread *cur = running_thread ();
   struct thread *next = next_thread_to_run ();
   struct thread *prev = NULL;
-
+  
   ASSERT (intr_get_level () == INTR_OFF);
   ASSERT (cur->status != THREAD_RUNNING);
   ASSERT (is_thread (next));
@@ -563,6 +590,7 @@ schedule (void)
   if (cur != next)
     prev = switch_threads (cur, next);
   thread_schedule_tail (prev);
+
 }
 
 /* Returns a tid to use for a new thread. */
@@ -575,7 +603,7 @@ allocate_tid (void)
   lock_acquire (&tid_lock);
   tid = next_tid++;
   lock_release (&tid_lock);
-
+  
   return tid;
 }
 

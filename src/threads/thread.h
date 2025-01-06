@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -93,14 +94,35 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
-#ifdef USERPROG
+    struct list children;
+    struct list_elem child_elem;
+    struct thread* parent;
+    struct semaphore child_parent_sync;
+    struct semaphore parent_wait;
+    int child_status;
+    int exit_status;
+    tid_t parent_wait_tid;
+    bool child_success;
+    bool first_wait;
+    struct list open_files;
+    struct file* exec_file;
+    struct list locks;
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+#ifdef USERPROG
+   //  /* Owned by userprog/process.c. */
+   //  uint32_t *pagedir;                  /* Page directory. */
 #endif
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
+
+struct file_elem {
+    int fd;
+    struct file* ptr;
+    struct list_elem elem;
+};
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
